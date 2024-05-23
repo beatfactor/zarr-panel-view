@@ -121,18 +121,16 @@ def get_cuda_metadata():
     }
     return metadata
 
-
 def create_cuda_info_panel():
     metadata = get_cuda_metadata()
     text = f"""
     ### CUDA Metadata
     - CUDA Available: {metadata["CUDA Available"]}
     - CUDA Version: {metadata["CUDA Version"]}
-    - Free Memory (Bytes): {metadata["Free Memory (MB)"]}
-    - Total Memory (Bytes): {metadata["Total Memory (MB)"]}
+    - Free Memory (MB): {metadata["Free Memory (MB)"]}
+    - Total Memory (MB): {metadata["Total Memory (MB)"]}
     """
     return pn.pane.Markdown(text, sizing_mode='stretch_width')
-
 
 def create_controls(data):
     channel_selector = pn.widgets.IntSlider(name='Channel', start=0, end=data.sizes['channel'] - 1, step=1, value=0)
@@ -143,7 +141,6 @@ def create_controls(data):
 
     return pn.Column(channel_selector, update_plot, sizing_mode='stretch_both')
 
-
 def main():
     zarr_path = 'data/D20070704.zarr'
     data = load_data(zarr_path)
@@ -152,13 +149,20 @@ def main():
     controls_and_plot = create_controls(data)
     cuda_info_panel = create_cuda_info_panel()
 
-    layout = pn.Column(
-        "## Sv Data Visualization",
+    # Adjust layout to make echogram visualization occupy at least 90% of the screen
+    sidebar = pn.Column(
         cuda_info_panel,
-        controls_and_plot,
+        controls_and_plot[0],  # Only include the channel selector in the sidebar
+        width=300,
+        sizing_mode='stretch_height'
+    )
+
+    main_content = pn.Column(
+        controls_and_plot[1],  # Include the echogram plot
         sizing_mode='stretch_both'
     )
-    layout.servable()
 
+    layout = pn.Row(sidebar, main_content, sizing_mode='stretch_both')
+    layout.servable()
 
 main()
