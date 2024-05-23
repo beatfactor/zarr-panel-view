@@ -40,7 +40,6 @@ __cmap_colors = {
     }
 }
 
-
 def _create_cmap(rgb, under=None, over=None):
     cmap = ListedColormap(rgb)
     if under is not None:
@@ -49,27 +48,22 @@ def _create_cmap(rgb, under=None, over=None):
         cmap.set_over(over)
     return cmap
 
-
 # Create and register the colormap
 colors_d = __cmap_colors['ek500']
 rgb = colors_d['rgb']
 cmap = _create_cmap(rgb, under=colors_d.get('under', None), over=colors_d.get('over', None))
 
-
 def bytes_to_mb(bytes):
     """Convert bytes to megabytes."""
     return bytes / (1024 ** 2)
-
 
 def load_data(path):
     """Load Zarr data using xarray."""
     return xr.open_zarr(path)
 
-
 def print_dataset_info(data):
     print("Dimensions:", data.sizes)
     print("Data variables:", data.data_vars)
-
 
 def get_cuda_metadata():
     cuda_available = cp.is_available()
@@ -92,7 +86,6 @@ def get_cuda_metadata():
     }
     return metadata
 
-
 def create_cuda_info_panel():
     metadata = get_cuda_metadata()
     text = f"""
@@ -105,7 +98,6 @@ def create_cuda_info_panel():
     """
     return pn.pane.Markdown(text, sizing_mode='stretch_width')
 
-
 def create_controls(data):
     channel_selector = pn.widgets.IntSlider(name='Channel', start=0, end=data.sizes['channel'] - 1, step=1, value=0)
 
@@ -115,12 +107,10 @@ def create_controls(data):
 
     return pn.Column(channel_selector, update_plot, sizing_mode='stretch_both')
 
-
 def update_metadata(event):
     """Update CUDA metadata panel on echogram plot events."""
     print("Event triggered:", event)
     cuda_info_panel.object = create_cuda_info_panel()
-
 
 def create_plot(data, channel):
     """Create an interactive plot using Holoviews and Datashader."""
@@ -156,7 +146,6 @@ def create_plot(data, channel):
 
     return rasterized_quadmesh
 
-
 def main():
     zarr_path = 'data/D20070704.zarr'
     data = load_data(zarr_path)
@@ -189,6 +178,5 @@ def main():
 
     layout = pn.Row(main_content, sidebar, sizing_mode='stretch_both')
     layout.servable()
-
 
 main()
