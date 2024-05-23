@@ -177,7 +177,8 @@ def main():
     )
 
     # Add event listeners to update CUDA metadata on echogram interactions
-    main_content[0].panel.param.watch(update_metadata, ['bounds', 'update'])
+    hv_quadmesh = controls_and_plot[1][0]
+    hv_quadmesh.param.watch(update_metadata, ['bounds', 'update'])
 
     layout = pn.Row(sidebar, main_content, sizing_mode='stretch_both')
     layout.servable()
