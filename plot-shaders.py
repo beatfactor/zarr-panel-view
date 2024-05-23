@@ -100,7 +100,7 @@ def print_dataset_info(data):
 
 def get_cuda_metadata():
     cuda_available = cp.is_available()
-    cuda_version = cp.cuda.runtime.getVersion() if cuda_available else "N/A"
+    cuda_version = cp.cuda.driver.get_version() if cuda_available else "N/A"
     memory_info = cp.cuda.runtime.memGetInfo() if cuda_available else ("N/A", "N/A")
 
     metadata = {
