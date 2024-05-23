@@ -54,6 +54,10 @@ rgb = colors_d['rgb']
 cmap = _create_cmap(rgb, under=colors_d.get('under', None), over=colors_d.get('over', None))
 
 
+def bytes_to_mb(bytes):
+    """Convert bytes to megabytes."""
+    return bytes / (1024 ** 2)
+
 def load_data(path):
     """Load Zarr data using xarray."""
     return xr.open_zarr(path)
@@ -100,14 +104,20 @@ def print_dataset_info(data):
 
 def get_cuda_metadata():
     cuda_available = cp.is_available()
-    cuda_version = cp.cuda.driver.get_version() if cuda_available else "N/A"
-    memory_info = cp.cuda.runtime.memGetInfo() if cuda_available else ("N/A", "N/A")
+    if cuda_available:
+        cuda_version = cp.cuda.runtime.runtimeGetVersion()
+        free_mem, total_mem = cp.cuda.runtime.memGetInfo()
+        free_mem_mb = bytes_to_mb(free_mem)
+        total_mem_mb = bytes_to_mb(total_mem)
+    else:
+        cuda_version = "N/A"
+        free_mem_mb, total_mem_mb = "N/A", "N/A"
 
     metadata = {
         "CUDA Available": cuda_available,
-        "CUDA Version": cuda_version,
-        "Free Memory (Bytes)": memory_info[0],
-        "Total Memory (Bytes)": memory_info[1]
+        "CUDA Version": f"{cuda_version // 1000}.{cuda_version % 1000 // 10}",
+        "Free Memory (MB)": free_mem_mb,
+        "Total Memory (MB)": total_mem_mb
     }
     return metadata
 
