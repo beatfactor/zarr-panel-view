@@ -7,7 +7,9 @@ import holoviews as hv
 from holoviews import opts
 from holoviews.operation.datashader import rasterize
 import datashader as ds
+from bokeh.models import HoverTool
 from matplotlib.colors import ListedColormap
+from bokeh.palettes import Viridis256
 
 pn.extension('plotly')
 hv.extension('bokeh', width=100)
@@ -81,7 +83,7 @@ def create_plot(data, channel):
 
     # Convert DataArray to HoloViews QuadMesh
     hv_quadmesh = hv.QuadMesh(ds_array, kdims=['ping_time', 'range_sample'], vdims=['Sv']).opts(
-        cmap=cmap,
+        cmap='viridis',
         colorbar=True,
         width=1200,
         height=800,
@@ -91,9 +93,7 @@ def create_plot(data, channel):
         hooks=[lambda plot, element: plot.handles['colorbar'].set_label('Sv')]
     )
 
-    rasterized_quadmesh = rasterize(hv_quadmesh, aggregator=ds.mean('Sv'))
-
-    return rasterized_quadmesh.opts(
+    rasterized_quadmesh = rasterize(hv_quadmesh, aggregator=ds.mean('Sv')).opts(
         opts.QuadMesh(
             tools=['hover'],
             hover_line_color='white',
@@ -101,6 +101,8 @@ def create_plot(data, channel):
             active_tools=['wheel_zoom']
         )
     )
+
+    return rasterized_quadmesh
 
 def print_dataset_info(data):
     print("Dimensions:", data.sizes)
@@ -113,15 +115,17 @@ def get_cuda_metadata():
         free_mem, total_mem = cp.cuda.runtime.memGetInfo()
         free_mem_mb = bytes_to_mb(free_mem)
         total_mem_mb = bytes_to_mb(total_mem)
+        used_mem_mb = total_mem_mb - free_mem_mb
     else:
         cuda_version = "N/A"
-        free_mem_mb, total_mem_mb = "N/A", "N/A"
+        free_mem_mb, total_mem_mb, used_mem_mb = "N/A", "N/A", "N/A"
 
     metadata = {
         "CUDA Available": cuda_available,
         "CUDA Version": f"{cuda_version // 1000}.{cuda_version % 1000 // 10}",
         "Free Memory (MB)": free_mem_mb,
-        "Total Memory (MB)": total_mem_mb
+        "Total Memory (MB)": total_mem_mb,
+        "Used Memory (MB)": used_mem_mb
     }
     return metadata
 
@@ -133,6 +137,7 @@ def create_cuda_info_panel():
     - CUDA Version: {metadata["CUDA Version"]}
     - Free Memory (MB): {metadata["Free Memory (MB)"]}
     - Total Memory (MB): {metadata["Total Memory (MB)"]}
+    - Used Memory (MB): {metadata["Used Memory (MB)"]}
     """
     return pn.pane.Markdown(text, sizing_mode='stretch_width')
 
@@ -145,12 +150,17 @@ def create_controls(data):
 
     return pn.Column(channel_selector, update_plot, sizing_mode='stretch_both')
 
+def update_metadata(event):
+    """Update CUDA metadata panel on echogram plot events."""
+    cuda_info_panel.object = create_cuda_info_panel()
+
 def main():
     zarr_path = 'data/D20070704.zarr'
     data = load_data(zarr_path)
 
     print_dataset_info(data)
     controls_and_plot = create_controls(data)
+    global cuda_info_panel
     cuda_info_panel = create_cuda_info_panel()
 
     # Adjust layout to make echogram visualization occupy at least 90% of the screen
@@ -165,6 +175,9 @@ def main():
         controls_and_plot[1],  # Include the echogram plot
         sizing_mode='stretch_both'
     )
+
+    # Add event listeners to update CUDA metadata on echogram interactions
+    main_content[0].panel.param.watch(update_metadata, ['bounds', 'update'])
 
     layout = pn.Row(sidebar, main_content, sizing_mode='stretch_both')
     layout.servable()
