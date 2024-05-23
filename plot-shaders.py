@@ -77,7 +77,7 @@ def create_plot(data, channel):
 
     # Use Datashader to rasterize the data for better performance with large datasets
     rasterized_quadmesh = rasterize(hv_quadmesh, aggregator=ds.mean('Sv')).opts(
-        opts.QuadMesh(cmap=cmap, colorbar=True, width=1200, height=800)
+        opts.QuadMesh(cmap=cmap, colorbar=True, width=1200, height=800, clim=(np.nanmin(sv_values), np.nanmax(sv_values)))
     )
 
     return rasterized_quadmesh
@@ -91,11 +91,11 @@ def print_dataset_info(data):
 def create_controls(data):
     channel_selector = pn.widgets.IntSlider(name='Channel', start=0, end=data.sizes['channel'] - 1, step=1, value=0)
 
-    @pn.depends(channel_selector)
+    @pn.depends(channel_selector.param.value)
     def update_plot(channel):
-        return pn.pane.HoloViews(create_plot(data, channel), sizing_mode='stretch_both')
+        return create_plot(data, channel)
 
-    return pn.Column(channel_selector, update_plot)
+    return pn.Column(channel_selector, update_plot, sizing_mode='stretch_both')
 
 
 def main():
