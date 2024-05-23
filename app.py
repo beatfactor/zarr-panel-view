@@ -154,4 +154,4 @@ def update_echogram(channel):
     return create_plot(data, channel)
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=True, host='0.0.0.0')
