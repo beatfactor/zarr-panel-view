@@ -1,5 +1,4 @@
 import os
-import cupy as cp
 import xarray as xr
 import numpy as np
 import panel as pn
@@ -61,49 +60,6 @@ def load_data(path):
     """Load Zarr data using xarray."""
     return xr.open_zarr(path)
 
-def process_data_with_cupy(sv_values):
-    """Process data using CuPy."""
-    return cp.flipud(sv_values)  # Flip vertically
-
-def create_plot(data, channel):
-    """Create an interactive plot using Holoviews and Datashader."""
-    sv_data = data.Sv.isel(channel=channel)
-    ping_time = sv_data['ping_time']
-    range_sample = sv_data['range_sample']
-
-    # Convert data to CuPy for GPU acceleration
-    sv_values = cp.array(sv_data.transpose('ping_time', 'range_sample'))
-    sv_values = process_data_with_cupy(sv_values)  # Use CuPy for processing
-
-    # Transfer data back to CPU for visualization
-    sv_values = cp.asnumpy(sv_values)
-
-    # Create DataArray
-    ds_array = xr.DataArray(sv_values, coords=[ping_time, range_sample], dims=['ping_time', 'range_sample'])
-
-    # Convert DataArray to HoloViews QuadMesh
-    hv_quadmesh = hv.QuadMesh(ds_array, kdims=['ping_time', 'range_sample'], vdims=['Sv']).opts(
-        cmap='viridis',
-        colorbar=True,
-        width=1200,
-        height=800,
-        clim=(np.nanmin(sv_values), np.nanmax(sv_values)),
-        tools=['hover'],
-        invert_yaxis=True,  # Flip vertically
-        hooks=[lambda plot, element: plot.handles['colorbar'].set_label('Sv')]
-    )
-
-    rasterized_quadmesh = rasterize(hv_quadmesh, aggregator=ds.mean('Sv')).opts(
-        opts.QuadMesh(
-            tools=['hover'],
-            hover_line_color='white',
-            hover_fill_color='blue',
-            active_tools=['wheel_zoom']
-        )
-    )
-
-    return rasterized_quadmesh
-
 def print_dataset_info(data):
     print("Dimensions:", data.sizes)
     print("Data variables:", data.data_vars)
@@ -155,6 +111,38 @@ def update_metadata(event):
     print("Event triggered:", event)
     cuda_info_panel.object = create_cuda_info_panel()
 
+def create_plot(data, channel):
+    """Create an interactive plot using Holoviews and Datashader."""
+    sv_data = data.Sv.isel(channel=channel)
+    ping_time = sv_data['ping_time']
+    range_sample = sv_data['range_sample']
+
+    # Create DataArray
+    ds_array = xr.DataArray(sv_data, coords=[ping_time, range_sample], dims=['ping_time', 'range_sample'])
+
+    # Convert DataArray to HoloViews QuadMesh
+    hv_quadmesh = hv.QuadMesh(ds_array, kdims=['ping_time', 'range_sample'], vdims=['Sv']).opts(
+        cmap='viridis',
+        colorbar=True,
+        width=800,
+        height=600,
+        clim=(np.nanmin(sv_data), np.nanmax(sv_data)),
+        tools=['hover'],
+        invert_yaxis=True,  # Flip vertically
+        hooks=[lambda plot, element: plot.handles['colorbar'].set_label('Sv')]
+    )
+
+    rasterized_quadmesh = rasterize(hv_quadmesh, aggregator=ds.mean('Sv')).opts(
+        opts.QuadMesh(
+            tools=['hover'],
+            hover_line_color='white',
+            hover_fill_color='blue',
+            active_tools=['wheel_zoom']
+        )
+    )
+
+    return rasterized_quadmesh
+
 def main():
     zarr_path = 'data/D20070704.zarr'
     data = load_data(zarr_path)
@@ -174,7 +162,8 @@ def main():
 
     main_content = pn.Column(
         controls_and_plot[1],  # Include the echogram plot
-        sizing_mode='stretch_both'
+        width=900,
+        height=700
     )
 
     print("controls_and_plot:", controls_and_plot)
@@ -184,7 +173,7 @@ def main():
     # Add watcher to HoloViews object events
     hv_plot.param.watch(update_metadata, ['object'])
 
-    layout = pn.Row(sidebar, main_content, sizing_mode='stretch_both')
+    layout = pn.Row(main_content, sidebar, sizing_mode='stretch_both')
     layout.servable()
 
 main()
