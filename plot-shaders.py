@@ -40,6 +40,7 @@ __cmap_colors = {
     }
 }
 
+
 def _create_cmap(rgb, under=None, over=None):
     cmap = ListedColormap(rgb)
     if under is not None:
@@ -48,27 +49,32 @@ def _create_cmap(rgb, under=None, over=None):
         cmap.set_over(over)
     return cmap
 
+
 # Create and register the colormap
 colors_d = __cmap_colors['ek500']
 rgb = colors_d['rgb']
 cmap = _create_cmap(rgb, under=colors_d.get('under', None), over=colors_d.get('over', None))
 
+
 def bytes_to_mb(bytes):
     """Convert bytes to megabytes."""
     return bytes / (1024 ** 2)
+
 
 def load_data(path):
     """Load Zarr data using xarray."""
     return xr.open_zarr(path)
 
+
 def print_dataset_info(data):
     print("Dimensions:", data.sizes)
     print("Data variables:", data.data_vars)
 
+
 def get_cuda_metadata():
     cuda_available = cp.is_available()
     if cuda_available:
-        cuda_version = cp.cuda.runtime.runtimeGetVersion()
+        cuda_version = cp.cuda.runtime.getVersion()
         free_mem, total_mem = cp.cuda.runtime.memGetInfo()
         free_mem_mb = bytes_to_mb(free_mem)
         total_mem_mb = bytes_to_mb(total_mem)
@@ -86,6 +92,7 @@ def get_cuda_metadata():
     }
     return metadata
 
+
 def create_cuda_info_panel():
     metadata = get_cuda_metadata()
     text = f"""
@@ -98,6 +105,7 @@ def create_cuda_info_panel():
     """
     return pn.pane.Markdown(text, sizing_mode='stretch_width')
 
+
 def create_controls(data):
     channel_selector = pn.widgets.IntSlider(name='Channel', start=0, end=data.sizes['channel'] - 1, step=1, value=0)
 
@@ -107,10 +115,12 @@ def create_controls(data):
 
     return pn.Column(channel_selector, update_plot, sizing_mode='stretch_both')
 
+
 def update_metadata(event):
     """Update CUDA metadata panel on echogram plot events."""
     print("Event triggered:", event)
     cuda_info_panel.object = create_cuda_info_panel()
+
 
 def create_plot(data, channel):
     """Create an interactive plot using Holoviews and Datashader."""
@@ -118,8 +128,11 @@ def create_plot(data, channel):
     ping_time = sv_data['ping_time']
     range_sample = sv_data['range_sample']
 
-    # Create DataArray
-    ds_array = xr.DataArray(sv_data, coords=[ping_time, range_sample], dims=['ping_time', 'range_sample'])
+    # Flip the echogram vertically
+    sv_values = np.flipud(sv_data.values)
+
+    # Create DataArray from flipped values
+    ds_array = xr.DataArray(sv_values, coords=[ping_time, range_sample], dims=['ping_time', 'range_sample'])
 
     # Convert DataArray to HoloViews QuadMesh
     hv_quadmesh = hv.QuadMesh(ds_array, kdims=['ping_time', 'range_sample'], vdims=['Sv']).opts(
@@ -127,9 +140,8 @@ def create_plot(data, channel):
         colorbar=True,
         width=800,
         height=600,
-        clim=(np.nanmin(sv_data), np.nanmax(sv_data)),
+        clim=(np.nanmin(sv_values), np.nanmax(sv_values)),
         tools=['hover'],
-        invert_yaxis=True,  # Flip vertically
         hooks=[lambda plot, element: plot.handles['colorbar'].set_label('Sv')]
     )
 
@@ -143,6 +155,7 @@ def create_plot(data, channel):
     )
 
     return rasterized_quadmesh
+
 
 def main():
     zarr_path = 'data/D20070704.zarr'
@@ -176,5 +189,6 @@ def main():
 
     layout = pn.Row(main_content, sidebar, sizing_mode='stretch_both')
     layout.servable()
+
 
 main()
