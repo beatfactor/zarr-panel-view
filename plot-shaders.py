@@ -74,7 +74,7 @@ def print_dataset_info(data):
 def get_cuda_metadata():
     cuda_available = cp.is_available()
     if cuda_available:
-        cuda_version = cp.cuda.runtime.getVersion()
+        cuda_version = cp.cuda.runtime.runtimeGetVersion()
         free_mem, total_mem = cp.cuda.runtime.memGetInfo()
         free_mem_mb = bytes_to_mb(free_mem)
         total_mem_mb = bytes_to_mb(total_mem)
