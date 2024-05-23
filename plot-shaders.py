@@ -128,8 +128,8 @@ def create_cuda_info_panel():
     ### CUDA Metadata
     - CUDA Available: {metadata["CUDA Available"]}
     - CUDA Version: {metadata["CUDA Version"]}
-    - Free Memory (Bytes): {metadata["Free Memory (Bytes)"]}
-    - Total Memory (Bytes): {metadata["Total Memory (Bytes)"]}
+    - Free Memory (Bytes): {metadata["Free Memory (MB)"]}
+    - Total Memory (Bytes): {metadata["Total Memory (MB)"]}
     """
     return pn.pane.Markdown(text, sizing_mode='stretch_width')
 
