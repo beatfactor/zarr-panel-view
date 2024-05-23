@@ -1,4 +1,5 @@
 import os
+import cupy as cp
 import xarray as xr
 import numpy as np
 import panel as pn
