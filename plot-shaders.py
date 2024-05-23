@@ -152,6 +152,7 @@ def create_controls(data):
 
 def update_metadata(event):
     """Update CUDA metadata panel on echogram plot events."""
+    print("Event triggered:", event)
     cuda_info_panel.object = create_cuda_info_panel()
 
 def main():
@@ -176,9 +177,12 @@ def main():
         sizing_mode='stretch_both'
     )
 
+    print("controls_and_plot:", controls_and_plot)
+    print("main_content:", main_content)
+
     # Add event listeners to update CUDA metadata on echogram interactions
     hv_quadmesh = controls_and_plot[1][0]
-    hv_quadmesh.param.watch(update_metadata, ['value'])
+    hv_quadmesh.param.watch(update_metadata, ['event'])
 
     layout = pn.Row(sidebar, main_content, sizing_mode='stretch_both')
     layout.servable()
