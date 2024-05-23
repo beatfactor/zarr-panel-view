@@ -66,7 +66,7 @@ def create_plot(data, channel):
     sv_data = data.Sv.isel(channel=channel)
     ping_time = sv_data['ping_time']
     range_sample = sv_data['range_sample']
-    sv_values = sv_data.transpose('ping_time', 'range_sample')  # Ensure dimensions match
+    sv_values = sv_data.transpose('ping_time', 'range_sample')[::-1]  # Ensure dimensions match and flip vertically
 
     # Create DataArray
     ds_array = xr.DataArray(sv_values, coords=[ping_time, range_sample], dims=['ping_time', 'range_sample'])
@@ -77,7 +77,7 @@ def create_plot(data, channel):
 
     # Use Datashader to rasterize the data for better performance with large datasets
     rasterized_quadmesh = rasterize(hv_quadmesh, aggregator=ds.mean('Sv')).opts(
-        opts.QuadMesh(cmap=cmap, colorbar=True, width=800, height=800)
+        opts.QuadMesh(cmap=cmap, colorbar=True, width=1200, height=800)
     )
 
     return rasterized_quadmesh
