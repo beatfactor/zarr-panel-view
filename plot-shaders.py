@@ -38,7 +38,6 @@ __cmap_colors = {
     }
 }
 
-
 def _create_cmap(rgb, under=None, over=None):
     cmap = ListedColormap(rgb)
     if under is not None:
@@ -47,12 +46,10 @@ def _create_cmap(rgb, under=None, over=None):
         cmap.set_over(over)
     return cmap
 
-
 # Create and register the colormap
 colors_d = __cmap_colors['ek500']
 rgb = colors_d['rgb']
 cmap = _create_cmap(rgb, under=colors_d.get('under', None), over=colors_d.get('over', None))
-
 
 def bytes_to_mb(bytes):
     """Convert bytes to megabytes."""
@@ -62,11 +59,9 @@ def load_data(path):
     """Load Zarr data using xarray."""
     return xr.open_zarr(path)
 
-
 def process_data_with_cupy(sv_values):
     """Process data using CuPy."""
     return cp.flipud(sv_values)  # Flip vertically
-
 
 def create_plot(data, channel):
     """Create an interactive plot using Holoviews and Datashader."""
@@ -83,24 +78,33 @@ def create_plot(data, channel):
 
     # Create DataArray
     ds_array = xr.DataArray(sv_values, coords=[ping_time, range_sample], dims=['ping_time', 'range_sample'])
-    print("ds_array:", ds_array)
 
     # Convert DataArray to HoloViews QuadMesh
-    hv_quadmesh = hv.QuadMesh(ds_array, kdims=['ping_time', 'range_sample'], vdims=['Sv'])
-
-    # Use Datashader to rasterize the data for better performance with large datasets
-    rasterized_quadmesh = rasterize(hv_quadmesh, aggregator=ds.mean('Sv')).opts(
-        opts.QuadMesh(cmap=cmap, colorbar=True, width=1200, height=800,
-                      clim=(np.nanmin(sv_values), np.nanmax(sv_values)))
+    hv_quadmesh = hv.QuadMesh(ds_array, kdims=['ping_time', 'range_sample'], vdims=['Sv']).opts(
+        cmap=cmap,
+        colorbar=True,
+        width=1200,
+        height=800,
+        clim=(np.nanmin(sv_values), np.nanmax(sv_values)),
+        tools=['hover'],
+        invert_yaxis=True,  # Flip vertically
+        hooks=[lambda plot, element: plot.handles['colorbar'].set_label('Sv')]
     )
 
-    return rasterized_quadmesh
+    rasterized_quadmesh = rasterize(hv_quadmesh, aggregator=ds.mean('Sv'))
 
+    return rasterized_quadmesh.opts(
+        opts.QuadMesh(
+            tools=['hover'],
+            hover_line_color='white',
+            hover_fill_color='blue',
+            active_tools=['wheel_zoom']
+        )
+    )
 
 def print_dataset_info(data):
     print("Dimensions:", data.sizes)
     print("Data variables:", data.data_vars)
-
 
 def get_cuda_metadata():
     cuda_available = cp.is_available()
