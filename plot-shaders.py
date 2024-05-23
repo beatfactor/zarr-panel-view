@@ -128,10 +128,11 @@ def create_plot(data, channel):
     hv_quadmesh = hv.QuadMesh(ds_array, kdims=['ping_time', 'range_sample'], vdims=['Sv']).opts(
         cmap='viridis',
         colorbar=True,
-        width=1800,
-        height=1600,
+        width=800,
+        height=600,
         clim=(np.nanmin(sv_values), np.nanmax(sv_values)),
         tools=['hover'],
+        invert_yaxis=True,
         hooks=[lambda plot, element: plot.handles['colorbar'].set_label('Sv')]
     )
 
