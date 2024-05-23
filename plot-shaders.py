@@ -1,6 +1,5 @@
 import os
 import cupy as cp
-import numba
 import xarray as xr
 import numpy as np
 import panel as pn
@@ -60,10 +59,9 @@ def load_data(path):
     return xr.open_zarr(path)
 
 
-@numba.jit
-def process_data(sv_values):
-    """Process data with Numba."""
-    return sv_values[::-1]  # Flip vertically
+def process_data_with_cupy(sv_values):
+    """Process data using CuPy."""
+    return cp.flipud(sv_values)  # Flip vertically
 
 
 def create_plot(data, channel):
@@ -74,7 +72,7 @@ def create_plot(data, channel):
 
     # Convert data to CuPy for GPU acceleration
     sv_values = cp.array(sv_data.transpose('ping_time', 'range_sample'))
-    sv_values = process_data(sv_values)  # Use Numba for processing
+    sv_values = process_data_with_cupy(sv_values)  # Use CuPy for processing
 
     # Transfer data back to CPU for visualization
     sv_values = cp.asnumpy(sv_values)
