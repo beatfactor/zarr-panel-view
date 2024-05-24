@@ -1,0 +1,11 @@
+xarray
+numpy
+panel
+holoviews
+datashader
+matplotlib
+bokeh
+dask[dataframe]
+zarr
+numba
+cupy-cuda12x
