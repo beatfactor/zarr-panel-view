@@ -1,183 +1,168 @@
 import os
-import cupy as cp
 import xarray as xr
 import numpy as np
 import panel as pn
 import holoviews as hv
-from holoviews import opts
 from holoviews.operation.datashader import rasterize
 import datashader as ds
-from bokeh.models import HoverTool
-from matplotlib.colors import ListedColormap
-from bokeh.palettes import Viridis256
+from bokeh.models import HoverTool, BoxSelectTool, BoxZoomTool, WheelZoomTool, PanTool, ResetTool, SaveTool
+import urllib.parse
+from colormap import available_colormaps
 
 pn.extension('plotly')
 hv.extension('bokeh', width=100)
+pn.extension(sizing_mode="stretch_width")
 
-# Define the custom colormap
-__cmap_colors = {
-    'ek500': {
-        'rgb': (
-                np.array(
-                    [
-                        [159, 159, 159],  # light grey
-                        [95, 95, 95],  # grey
-                        [0, 0, 255],  # dark blue
-                        [0, 0, 127],  # blue
-                        [0, 191, 0],  # green
-                        [0, 127, 0],  # dark green
-                        [255, 255, 0],  # yellow
-                        [255, 127, 0],  # orange
-                        [255, 0, 191],  # pink
-                        [255, 0, 0],  # red
-                        [166, 83, 60],  # light brown
-                    ]
-                )
-                / 255
-        ),
-        'under': '1',  # white
-        'over': np.array([120, 60, 40]) / 255,  # dark brown
-    }
-}
-
-def _create_cmap(rgb, under=None, over=None):
-    cmap = ListedColormap(rgb)
-    if under is not None:
-        cmap.set_under(under)
-    if over is not None:
-        cmap.set_over(over)
-    return cmap
-
-# Create and register the colormap
-colors_d = __cmap_colors['ek500']
-rgb = colors_d['rgb']
-cmap = _create_cmap(rgb, under=colors_d.get('under', None), over=colors_d.get('over', None))
 
 def bytes_to_mb(bytes):
     """Convert bytes to megabytes."""
     return bytes / (1024 ** 2)
 
+
 def load_data(path):
     """Load Zarr data using xarray."""
     return xr.open_zarr(path)
+
 
 def print_dataset_info(data):
     print("Dimensions:", data.sizes)
     print("Data variables:", data.data_vars)
 
-def get_cuda_metadata():
-    cuda_available = cp.is_available()
-    if cuda_available:
-        cuda_version = cp.cuda.runtime.runtimeGetVersion()
-        free_mem, total_mem = cp.cuda.runtime.memGetInfo()
-        free_mem_mb = bytes_to_mb(free_mem)
-        total_mem_mb = bytes_to_mb(total_mem)
-        used_mem_mb = total_mem_mb - free_mem_mb
-    else:
-        cuda_version = "N/A"
-        free_mem_mb, total_mem_mb, used_mem_mb = "N/A", "N/A", "N/A"
 
-    metadata = {
-        "CUDA Available": cuda_available,
-        "CUDA Version": f"{cuda_version // 1000}.{cuda_version % 1000 // 10}",
-        "Free Memory (MB)": free_mem_mb,
-        "Total Memory (MB)": total_mem_mb,
-        "Used Memory (MB)": used_mem_mb
-    }
-    return metadata
+# def get_cuda_metadata():
+#     cuda_available = cp.is_available()
+#     if cuda_available:
+#         cuda_version = cp.cuda.runtime.runtimeGetVersion()
+#         free_mem, total_mem = cp.cuda.runtime.memGetInfo()
+#         free_mem_mb = bytes_to_mb(free_mem)
+#         total_mem_mb = bytes_to_mb(total_mem)
+#         used_mem_mb = total_mem_mb - free_mem_mb
+#     else:
+#         cuda_version = "N/A"
+#         free_mem_mb, total_mem_mb, used_mem_mb = "N/A", "N/A", "N/A"
 
-def create_cuda_info_panel():
-    metadata = get_cuda_metadata()
-    text = f"""
-    ### CUDA Metadata
-    - CUDA Available: {metadata["CUDA Available"]}
-    - CUDA Version: {metadata["CUDA Version"]}
-    - Free Memory (MB): {metadata["Free Memory (MB)"]}
-    - Total Memory (MB): {metadata["Total Memory (MB)"]}
-    - Used Memory (MB): {metadata["Used Memory (MB)"]}
-    """
-    return pn.pane.Markdown(text, sizing_mode='stretch_width')
+#     metadata = {
+#         "CUDA Available": cuda_available,
+#         "CUDA Version": f"{cuda_version // 1000}.{cuda_version % 1000 // 10}",
+#         "Free Memory (MB)": free_mem_mb,
+#         "Total Memory (MB)": total_mem_mb,
+#         "Used Memory (MB)": used_mem_mb
+#     }
+#     return metadata
+
+
+# def create_cuda_info_panel():
+#     metadata = get_cuda_metadata()
+#     text = f"""
+#     ### CUDA Metadata
+#     - CUDA Available: {metadata["CUDA Available"]}
+#     - CUDA Version: {metadata["CUDA Version"]}
+#     - Free Memory (MB): {metadata["Free Memory (MB)"]}
+#     - Total Memory (MB): {metadata["Total Memory (MB)"]}
+#     - Used Memory (MB): {metadata["Used Memory (MB)"]}
+#     """
+#     return pn.pane.Markdown(text, sizing_mode='stretch_width')
+
+def create_histogram():
+    """Create an empty histogram for displaying selected data."""
+    return hv.Histogram(np.histogram([], bins=50), kdims=['Sv'], vdims=['Count']).opts(
+        width=400, height=400, xlabel='Sv', ylabel='Count'
+    )
 
 def create_controls(data):
-    channel_selector = pn.widgets.IntSlider(name='Channel', start=0, end=data.sizes['channel'] - 1, step=1, value=0)
+    channel_names = [str(chan) for chan in data.channel.values]
+    channel_selector = pn.widgets.RadioBoxGroup(name='Channel', options=channel_names)
+    colormap_selector = pn.widgets.Select(name='Colormap', options=list(available_colormaps.keys()), value='Viridis')
+    histogram = create_histogram()
 
-    @pn.depends(channel_selector.param.value)
-    def update_plot(channel):
-        return create_plot(data, channel)
+    @pn.depends(channel_selector.param.value, colormap_selector.param.value)
+    def update_plot(channel_name, colormap_name):
+        channel = data.channel.values.tolist().index(channel_name)
+        colormap = available_colormaps[colormap_name]
+        plot = create_plot(data, channel, colormap)
+        selection_stream = hv.streams.Selection1D(source=plot)
 
-    return pn.Column(channel_selector, update_plot, sizing_mode='stretch_both')
+        def selection_callback(index):
+            sv_data = data.Sv.isel(channel=channel)
+            sv_data = update_range_sample_with_depth(sv_data).values
+            update_histogram(index, sv_data, histogram)
 
-def update_metadata(event):
-    """Update CUDA metadata panel on echogram plot events."""
-    print("Event triggered:", event)
-    cuda_info_panel.object = create_cuda_info_panel()
+        selection_stream.param.watch(selection_callback, 'index')
+        return pn.Row(plot, histogram)
 
-def create_plot(data, channel):
+
+    return pn.Column(channel_selector, colormap_selector, update_plot, sizing_mode='stretch_both')
+
+
+def get_query_params():
+    query_string = pn.state.location.search
+    return urllib.parse.parse_qs(query_string)
+
+
+def update_range_sample_with_depth(sv_data):
+    """Update the range_sample coordinate with true depth."""
+    first_channel = sv_data["channel"].values[0]
+    first_ping_time = sv_data["ping_time"].values[0]
+
+    # Slice the echo_range to get the desired range of values
+    selected_echo_range = sv_data["echo_range"].sel(channel=first_channel, ping_time=first_ping_time)
+    selected_echo_range = selected_echo_range.values.tolist()
+    selected_echo_range = [value + 8.6 for value in selected_echo_range]  # Transducer offset 8.6m
+
+    # Assign the values to the depth coordinate
+    sv_data = sv_data.assign_coords(range_sample=selected_echo_range)
+    return sv_data
+
+def create_plot(data, channel, colormap):
     """Create an interactive plot using Holoviews and Datashader."""
     sv_data = data.Sv.isel(channel=channel)
     ping_time = sv_data['ping_time']
     range_sample = sv_data['range_sample']
 
-    # Flip the echogram vertically
-    sv_values = np.flipud(sv_data.values)
-
-    # Create DataArray from flipped values
+    sv_values = sv_data.values
     ds_array = xr.DataArray(sv_values, coords=[ping_time, range_sample], dims=['ping_time', 'range_sample'])
+    hv_quadmesh = hv.QuadMesh(ds_array, kdims=['ping_time', 'range_sample'], vdims=['Sv'])
+    rasterized_quadmesh = rasterize(hv_quadmesh, aggregator=ds.mean('Sv'))
 
-    # Convert DataArray to HoloViews QuadMesh
-    hv_quadmesh = hv.QuadMesh(ds_array, kdims=['ping_time', 'range_sample'], vdims=['Sv']).opts(
-        cmap='viridis',
+    rasterized_quadmesh = rasterized_quadmesh.opts(
+        cmap=colormap,
         colorbar=True,
-        width=800,
-        height=600,
+        responsive=True,
+        min_height=600,
         clim=(np.nanmin(sv_values), np.nanmax(sv_values)),
-        tools=['hover'],
+        tools=['hover', 'box_select'],
+        active_tools=['wheel_zoom'],
         invert_yaxis=True,
-        hooks=[lambda plot, element: plot.handles['colorbar'].set_label('Sv')]
-    )
-
-    rasterized_quadmesh = rasterize(hv_quadmesh, aggregator=ds.mean('Sv')).opts(
-        opts.QuadMesh(
-            tools=['hover'],
-            hover_line_color='white',
-            hover_fill_color='blue',
-            active_tools=['wheel_zoom']
-        )
+        hooks=[lambda plot, element: plot.handles['colorbar'].title('Sv')]
     )
 
     return rasterized_quadmesh
 
+def update_histogram(selection, sv_data, histogram):
+    if selection:
+        selected_sv_values = sv_data.flatten()[selection]
+        hist, edges = np.histogram(selected_sv_values, bins=50)
+        histogram.data = hv.Histogram((edges, hist)).data
+    else:
+        histogram.data = hv.Histogram(np.histogram([], bins=50)).data
+
 def main():
-    zarr_path = 'data/D20070704.zarr'
+    params = get_query_params()
+    zarr_path = params.get('file', ['data/SE2204_-D20220704-T180334_Sv.zarr'])[0]
     data = load_data(zarr_path)
+    data = update_range_sample_with_depth(data)
 
-    print_dataset_info(data)
     controls_and_plot = create_controls(data)
-    global cuda_info_panel
-    cuda_info_panel = create_cuda_info_panel()
-
-    # Adjust layout to make echogram visualization occupy at least 90% of the screen
-    sidebar = pn.Column(
-        cuda_info_panel,
-        controls_and_plot[0],  # Only include the channel selector in the sidebar
-        width=300,
-        sizing_mode='stretch_height'
+    template = pn.template.FastListTemplate(
+        site="OceanStream",
+        title='Echogram Viewer',
+        sidebar=[controls_and_plot[0], controls_and_plot[1]],
+        main=[pn.panel(controls_and_plot[2], sizing_mode="scale_width")],
+        accent_base_color="#4099da",
+        header_background="#4099da"
     )
 
-    main_content = pn.Column(
-        controls_and_plot[1],  # Include the echogram plot
-        width=900,
-        height=700
-    )
+    template.servable();
 
-    print("controls_and_plot:", controls_and_plot)
-    print("main_content:", main_content)
-
-    hv_plot = main_content[0]
-    # Add watcher to HoloViews object events
-    hv_plot.param.watch(update_metadata, ['object'])
-
-    layout = pn.Row(main_content, sidebar, sizing_mode='stretch_both')
-    layout.servable()
 
 main()
